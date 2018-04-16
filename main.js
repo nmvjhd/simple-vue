@@ -12,12 +12,12 @@ function observe(data) {
       enumerable: true,
       configurable: false,
       get: function () {
-        console.log('get ' + key);
+        // console.log('get ' + key);
         Dep.target && dep.depend();
         return val;
       },
       set: function (newVal) {
-        console.log('set ' + key + ' val ' + val);
+        // console.log('set ' + key + ' val ' + val);
         val = newVal;
         dep.notify();
       },
@@ -55,7 +55,9 @@ function Watcher(vm, exp, callback) {
   this.vm = vm;
   this.exp = exp;
   this.cb = callback;
-  this.val = vm[exp];
+  // this.val = vm[exp];
+  //   this.val = exp.call(vm,vm);
+    this.val = exp.split('.').reduce((prevValue, currValue) => prevValue[currValue], vm);
   Dep.target = null;
 }
 
@@ -65,7 +67,7 @@ Watcher.prototype.addDep = function (dep) {
 
 Watcher.prototype.update = function () {
   const oldVal = this.val;
-  const val = this.vm[this.exp];
+  const val = this.exp.split('.').reduce((prevValue, currValue) => prevValue[currValue], vm);
   this.cb.call(this.vm, val, oldVal);
   this.val = val;
 }
@@ -127,19 +129,18 @@ const vm = new SVue({
   }
 });
 
-// vm.$watch('a', function (val,oldVal) {
-//   console.log('watched a change', val, oldVal);
-// });
-
-// vm.$watch('c.d', function (val, oldVal) {
-//   console.log('watched c.d change', val, oldVal);
-// });
-
-// console.log(vm.a);
-// vm.a = 222;
-// vm.c.d = 333;
-
-new Watcher(vm.c, 'd', function (val, oldVal) {
-  console.log('watched c.d change to ', val,' from ', oldVal);
+vm.$watch('a', function (val, oldVal) {
+  console.log('watched a changed from ', oldVal,' to ', val);
 });
 
+vm.$watch('c.d', function (val, oldVal) {
+  console.log('watched c.d changed from ', oldVal,' to ', val);
+});
+
+vm.$watch('c.e', function (val, oldVal) {
+    console.log('watched c.e changed from ', oldVal,' to ', val);
+});
+
+vm.a = 222;
+vm.c.d = 333;
+vm.c.e = 'qqq';
