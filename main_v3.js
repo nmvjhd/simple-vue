@@ -110,7 +110,7 @@ function proxy(target, sourceKey, key) {
 function compile(tplDom, vm) {
   traverse(tplDom, function (dom) {
     if (isElementNode(dom)) { // 元素节点
-
+      compileElementNode(dom, vm);
     } else if (isTextNode(dom)) { // 非空文本节点
       compileTextNode(dom, vm);
     }
@@ -118,25 +118,39 @@ function compile(tplDom, vm) {
 }
 
 function compileTextNode(node, vm) {
-  const tpl = node.textContent.trim();
+  const text = node.textContent.trim();
   const dataReg = /\{\{(.*)\}\}/img;
-  if(!dataReg.test(tpl)) {
+  if(!dataReg.test(text)) {
     return;
   }
   const innerVal = RegExp.$1;
   const resVal = getVal(vm, innerVal);
-  node.textContent = tpl.replace(dataReg, resVal);
+  node.textContent = text.replace(dataReg, resVal);
 
   vm.$watch(innerVal, (newVal, oldVal) => {
     console.log('watched ' + innerVal + ' changed from ', oldVal, ' to ', newVal);
-    const tpl = node.textContent.trim();
-    node.textContent = tpl.replace(oldVal, newVal);
+    const text = node.textContent.trim();
+    node.textContent = text.replace(oldVal, newVal);
   });
+}
+
+function compileElementNode(node, vm) {
+  const attrs = node.attributes;
+  for(let attr of attrs) {
+    const name = attr.name;
+    const val = attr.value;
+    if(isDirective(name)) {
+      const directName = name.substring(2);
+      Directives[directName].bind(node, val, vm);
+    }
+  }
 }
 
 const isTextNode = (node) => node.nodeType === 3 && node.textContent.trim();
 
 const isElementNode = (node) => node.nodeType === 1;
+
+const isDirective = (attr) => attr.indexOf('v-') === 0;
 
 function traverse(dom, callback) {
   callback(dom);
@@ -159,6 +173,51 @@ const tpl2Dom = (tpl) => {
   return $elem.childNodes[0];
 }
 
+const Directives = {
+  bind: {
+    bind(node, key, vm) {
+      vm.$watch(key, function (val, oldVal) {
+        Directives.bind.update(node, val, oldVal);
+      });
+    },
+    update(node, val) {
+      node.textContent = val;
+    },
+    unbind() {
+
+    },
+  },
+  if: {
+    bind(node, key, vm) {
+      vm.$watch(key, function (val, oldVal) {
+        Directives.if.update(node, val, oldVal);
+      });
+    },
+    update(node, val) {
+      if (!val) {
+        node.style = 'display:none;';
+      } else {
+        node.style = 'display: block;';
+      }
+    }
+    ,
+    unbind() {
+
+    },
+  },
+  for: {
+    bind() {
+
+    },
+    update() {
+
+    },
+    unbind() {
+
+    },
+  }
+};
+
 function SVue(options) {
   // init option
   this.vm = this;
@@ -176,7 +235,7 @@ function SVue(options) {
 
 SVue.prototype.$watch = function (exp, callback) {
   new Watcher(this.vm, exp, callback);
-}
+};
 
 SVue.prototype.$render = function () {
   const dom = this.dom;
@@ -194,9 +253,12 @@ const vm = new SVue({
     c: {
       d: 12,
       e: 'aaab',
-    }
+    },
+    f: false,
   },
   template: `<div>
+        <div v-bind="a"></div>
+        <div v-if="f">哈哈</div>
         <div class="div-a">这是上面的div</div>
         <div class="div-b">b的值是<strong>{{b}}</strong></div>
         <div class="div-c">这是下面的div</div>
