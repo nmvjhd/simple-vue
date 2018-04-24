@@ -176,8 +176,10 @@ const tpl2Dom = (tpl) => {
 const Directives = {
   bind: {
     bind(node, key, vm) {
-      vm.$watch(key, function (val, oldVal) {
-        Directives.bind.update(node, val, oldVal);
+      this.update(node, getVal(vm, key)); // bind时也需要求一次值
+
+      vm.$watch(key,(val, oldVal) => {
+        this.update(node, val, oldVal);
       });
     },
     update(node, val) {
@@ -188,29 +190,38 @@ const Directives = {
     },
   },
   if: {
-    bind(node, key, vm) {
-      vm.$watch(key, function (val, oldVal) {
-        Directives.if.update(node, val, oldVal);
+    bind(node, dirVal, vm) {
+      this.update(node, getVal(vm, dirVal));
+
+      vm.$watch(dirVal,(val, oldVal) => {
+        this.update(node, val, oldVal);
       });
     },
-    update(node, val) {
-      if (!val) {
+    update(node, dirVal) {
+      if (!dirVal) {
         node.style = 'display:none;';
       } else {
         node.style = 'display: block;';
       }
-    }
-    ,
+    },
     unbind() {
 
     },
   },
   for: {
-    bind() {
-
+    bind(node, dirVal, vm) {
+      console.log('for bind called');
+      this.update(node, dirVal, vm);
     },
-    update() {
-
+    update(node, dirVal, vm) {
+      console.log('for update called');
+      const keys = dirVal.split(/\s+/img);
+      const vals = getVal(vm, keys[2]);
+      for(let val of vals) {
+        const newNode = document.createElement('div');
+        newNode.innerText = val;
+        node.parentNode.appendChild(newNode);
+      }
     },
     unbind() {
 
@@ -255,6 +266,7 @@ const vm = new SVue({
       e: 'aaab',
     },
     f: false,
+    g: ['aaa', 'bbb', 'ccc'],
   },
   template: `<div>
         <div v-bind="a"></div>
@@ -264,6 +276,7 @@ const vm = new SVue({
         <div class="div-c">这是下面的div</div>
         <div class="div-d">c.d的值是<strong>{{c.d}}</strong></div>
         <div class="div-e">c.e的值是{{c.e}}</div>
+        <div><div v-for="item in g">{{item}}</div></div>
     </div>`,
   methods: {
     hehe() {
