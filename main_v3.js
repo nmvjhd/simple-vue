@@ -21,7 +21,7 @@ function observe(data) {
       configurable: false,
       get: function () {
         // console.log('get ' + key);
-        Dep.target && dep.depend();
+        Dep.target && dep.addSub(Dep.target);
         return val;
       },
       set: function (newVal) {
@@ -35,50 +35,37 @@ function observe(data) {
 
 Dep.target = null;
 
-let uid = 0;
-
 function Dep() {
-  this.subs = [];
-  this.uid = uid++;
+    this.watchers = [];
 }
 
-Dep.prototype = {
-  addSub: function (sub) {
-    this.subs.push(sub);
-  },
-  removeSub: function () {
-    this.subs.remove(sub);
-  },
-  depend: function () {
-    Dep.target.addDep(this);
-  },
-  notify: function () {
-    this.subs.forEach(function (sub) {
-      sub.update();
+Dep.prototype.addSub = function (sub) {
+    this.watchers.push(sub);
+};
+
+Dep.prototype.notify = function () {
+    this.watchers.forEach(function (watcher) {
+        watcher.update();
     });
-  },
 };
 
 function Watcher(vm, exp, callback) {
-  Dep.target = this;
-  this.vm = vm;
-  this.exp = exp;
-  this.cb = callback;
-  // this.val = vm[exp];
-  this.val = getVal(vm, exp);
-  Dep.target = null;
-}
-
-Watcher.prototype.addDep = function (dep) {
-  dep.addSub(this);
+    Dep.target = this;
+    this.vm = vm;
+    this.exp = exp;
+    this.cb = callback;
+    this.val = getVal(vm, exp);
+    Dep.target = null;
 }
 
 Watcher.prototype.update = function () {
-  const oldVal = this.val;
-  const val = getVal(vm, this.exp);
-  this.cb.call(this.vm, val, oldVal);
-  this.val = val;
-}
+    const oldVal = this.val;
+    const val = getVal(vm, this.exp);
+    this.cb.call(this.vm, val, oldVal);
+    this.val = val;
+
+    this.vm.$mount();
+};
 
 function initData(vm) {
   proxyKey(vm, 'data');
@@ -106,7 +93,7 @@ function proxy(target, sourceKey, key) {
   })
 }
 
-// map tplDom to renderDom
+// parse directives
 function compile(tplDom, vm) {
   traverse(tplDom, function (dom) {
     if (isElementNode(dom)) { // 元素节点
@@ -161,10 +148,6 @@ function traverse(dom, callback) {
   }
 }
 
-function render(dom, vm) {
-  compile(dom, vm);
-}
-
 const getVal = (data, keyPath) => keyPath.split('.').reduce((prevValue, currValue) => prevValue[currValue], data);
 
 const tpl2Dom = (tpl) => {
@@ -176,8 +159,10 @@ const tpl2Dom = (tpl) => {
 const Directives = {
   bind: {
     bind(node, key, vm) {
-      vm.$watch(key, function (val, oldVal) {
-        Directives.bind.update(node, val, oldVal);
+      this.update(node, getVal(vm, key)); // bind时也需要求一次值
+
+      vm.$watch(key,(val, oldVal) => {
+        this.update(node, val, oldVal);
       });
     },
     update(node, val) {
@@ -189,8 +174,10 @@ const Directives = {
   },
   if: {
     bind(node, key, vm) {
-      vm.$watch(key, function (val, oldVal) {
-        Directives.if.update(node, val, oldVal);
+      this.update(node, getVal(vm, key));
+
+      vm.$watch(key,(val, oldVal) => {
+        this.update(node, val, oldVal);
       });
     },
     update(node, val) {
@@ -199,18 +186,18 @@ const Directives = {
       } else {
         node.style = 'display: block;';
       }
-    }
-    ,
+    },
     unbind() {
 
     },
   },
   for: {
-    bind() {
-
+    bind(node, key, vm) {
+      console.log('for bind called');
+      this.update(node, getVal(vm, key));
     },
-    update() {
-
+    update(node, val) {
+      console.log('for update called');
     },
     unbind() {
 
@@ -227,9 +214,8 @@ function SVue(options) {
 
   Object.assign(this, this.options);
   initData(this.vm);
-  this.dom = tpl2Dom(this.tpl);
   if (this.el) {
-    this.$render();
+    this.$mount(this.el);
   }
 }
 
@@ -237,10 +223,10 @@ SVue.prototype.$watch = function (exp, callback) {
   new Watcher(this.vm, exp, callback);
 };
 
-SVue.prototype.$render = function () {
-  const dom = this.dom;
-  render(dom, this.vm);
-  const rootEl = document.querySelector(this.el);
+SVue.prototype.$mount = function (el) {
+  const dom = tpl2Dom(this.tpl);
+  compile(dom, this.vm);
+  const rootEl = document.querySelector(el);
   if (rootEl) rootEl.appendChild(dom);
 };
 
@@ -255,6 +241,7 @@ const vm = new SVue({
       e: 'aaab',
     },
     f: false,
+    g: ['aaa', 'bbb'],
   },
   template: `<div>
         <div v-bind="a"></div>
@@ -264,6 +251,7 @@ const vm = new SVue({
         <div class="div-c">这是下面的div</div>
         <div class="div-d">c.d的值是<strong>{{c.d}}</strong></div>
         <div class="div-e">c.e的值是{{c.e}}</div>
+        <div><div v-for="item in g">{{item}}</div></div>
     </div>`,
   methods: {
     hehe() {

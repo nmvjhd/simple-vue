@@ -20,7 +20,7 @@ function observe(data) {
             configurable: false,
             get: function () {
                 // console.log('get ' + key);
-                Dep.target && dep.depend();
+                Dep.target && dep.addSub(Dep.target);
                 return val;
             },
             set: function (newVal) {
@@ -34,28 +34,18 @@ function observe(data) {
 
 Dep.target = null;
 
-let uid = 0;
-
 function Dep() {
-    this.subs = [];
-    this.uid = uid++;
+    this.watchers = [];
 }
 
-Dep.prototype = {
-    addSub: function (sub) {
-        this.subs.push(sub);
-    },
-    removeSub: function () {
-        this.subs.remove(sub);
-    },
-    depend: function () {
-        Dep.target.addDep(this);
-    },
-    notify: function () {
-        this.subs.forEach(function (sub) {
-            sub.update();
-        });
-    },
+Dep.prototype.addSub = function (sub) {
+    this.watchers.push(sub);
+};
+
+Dep.prototype.notify = function () {
+    this.watchers.forEach(function (watcher) {
+        watcher.update();
+    });
 };
 
 function Watcher(vm, exp, callback) {
@@ -63,13 +53,8 @@ function Watcher(vm, exp, callback) {
     this.vm = vm;
     this.exp = exp;
     this.cb = callback;
-    // this.val = vm[exp];
     this.val = getVal(vm, exp);
     Dep.target = null;
-}
-
-Watcher.prototype.addDep = function (dep) {
-    dep.addSub(this);
 }
 
 Watcher.prototype.update = function () {
@@ -78,8 +63,8 @@ Watcher.prototype.update = function () {
     this.cb.call(this.vm, val, oldVal);
     this.val = val;
 
-    this.vm.$render();
-}
+    this.vm.$mount();
+};
 
 function initData(vm) {
     proxyKey(vm, 'data');
@@ -107,8 +92,8 @@ function proxy(target, sourceKey, key) {
     })
 }
 
-function render(tpl, data) {
-    console.log('render');
+function compile(tpl, data) {
+    console.log('compile');
     const dataReg = /{{.*}}/img;
     return tpl.replace(dataReg, function (val) {
         const innerVal = val.substr(2, val.length - 4).trim();
@@ -128,7 +113,7 @@ function SVue(options) {
     Object.assign(this, this.options);
     initData(this.vm);
     if(this.el) {
-        this.$render();
+        this.$mount(this.el);
     }
 }
 
@@ -136,13 +121,12 @@ SVue.prototype.$watch = function (exp, callback) {
     new Watcher(this.vm, exp, callback);
 }
 
-SVue.prototype.$render = function () {
+SVue.prototype.$mount = function (el) {
     const tpl = this.tpl;
-    const resTpl = render(tpl, this.vm);
-    const rootEl = document.querySelector(this.el);
+    const resTpl = compile(tpl, this.vm);
+    const rootEl = document.querySelector(el);
     if(rootEl) rootEl.innerHTML = resTpl;
 };
-
 
 const vm = new SVue({
     el: '#app',
