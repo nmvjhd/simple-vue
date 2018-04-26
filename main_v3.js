@@ -161,9 +161,9 @@ const Directives = {
     bind(node, key, vm) {
       this.update(node, getVal(vm, key)); // bind时也需要求一次值
 
-      vm.$watch(key,(val, oldVal) => {
+    vm.$watch(key,(val, oldVal) => {
         this.update(node, val, oldVal);
-      });
+    });
     },
     update(node, val) {
       node.textContent = val;
@@ -173,15 +173,15 @@ const Directives = {
     },
   },
   if: {
-    bind(node, key, vm) {
-      this.update(node, getVal(vm, key));
+    bind(node, dirVal, vm) {
+        this.update(node, getVal(vm, dirVal));
 
-      vm.$watch(key,(val, oldVal) => {
-        this.update(node, val, oldVal);
-      });
+        vm.$watch(dirVal,(val, oldVal) => {
+            this.update(node, val, oldVal);
+        });
     },
-    update(node, val) {
-      if (!val) {
+    update(node, dirVal) {
+      if (!dirVal) {
         node.style = 'display:none;';
       } else {
         node.style = 'display: block;';
@@ -192,16 +192,23 @@ const Directives = {
     },
   },
   for: {
-    bind(node, key, vm) {
-      console.log('for bind called');
-      this.update(node, getVal(vm, key));
-    },
-    update(node, val) {
-      console.log('for update called');
-    },
-    unbind() {
+      bind(node, dirVal, vm) {
+          console.log('for bind called');
+          this.update(node, dirVal, vm);
+      },
+      update(node, dirVal, vm) {
+          console.log('for update called');
+          const keys = dirVal.split(/\s+/img);
+          const vals = getVal(vm, keys[2]);
+          for(let val of vals) {
+              const newNode = document.createElement('div');
+              newNode.innerText = val;
+              node.parentNode.appendChild(newNode);
+          }
+      },
+      unbind() {
 
-    },
+      },
   }
 };
 
@@ -241,7 +248,7 @@ const vm = new SVue({
       e: 'aaab',
     },
     f: false,
-    g: ['aaa', 'bbb'],
+    g: ['aaa', 'bbb', 'ccc'],
   },
   template: `<div>
         <div v-bind="a"></div>
